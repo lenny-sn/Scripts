@@ -1,1 +1,0 @@
-Get-WmiObject -class win32_process -Filter "name = 'Explorer.exe'" -ComputerName $args -EA "Stop" | % {$_.GetOwner().User}
