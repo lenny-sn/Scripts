@@ -1,0 +1,860 @@
+﻿# Мониторим журнал в реальном времени
+
+ $a=1; while ($a=1) {sleep 3;clear;
+Get-EventLog -LogName System -Newest 5}
+----------------------------------------------------------------------
+
+# Параллельное и последовательное выполнение команд:
+
+Workflow Refresh-MyApp
+
+{
+
+  sequence
+
+  {
+
+    Invoke-Command -ComputerName WEB1 {Stop-Service -Name MyApp -Force}
+
+    Invoke-Command -ComputerName WEB1 {Stop-Service -name MyAppQueue
+
+    -Force}
+
+    parallel
+
+    {
+
+      Invoke-Command -ComputerName FS1
+
+       {
+
+        Remove-Item -Path «D:\MyApp\Files\MyAppQueue.xml» –Force
+
+      }
+
+      Invoke-Command -ComputerName FS2
+
+      {
+
+        Remove-Item -Path «D:\MyApp\Files\MyAppQueue.xml» –Force
+
+      }
+
+    }
+
+    Invoke-Command -ComputerName WEB1 {Start-Service -Name MyAppQueue}
+
+    Invoke-Command -ComputerName WEB1 {Start-Service -Name MyApp}
+
+  }
+
+}
+
+==================================================================================
+
+# Отличие -like и -match:
+
+like - оперирует строками
+match - оперирует regex
+
+=====================================================================================
+
+# Формат даты/времени:
+
+PS C:\temp> (Get-Date).GetDateTimeFormats()[7]
+вторник, 29 января 2019 г.
+
+PS C:\temp> (Get-Date).GetDateTimeFormats()[7] -replace "(.+), (.+)$",'$2'
+29 января 2019 г.
+
+PS C:\temp> (Get-Date).GetDateTimeFormats()[7] -replace "(.+), (.+)$",'$1'
+вторник
+
+==========================================================================================
+
+# Вывести файлы по папкам по размерам
+
+ls c:\temp -Recurse -File  | Sort-Object -Property length | select name, length, directory
+
+==========================================================================================
+
+# Замена множественная в строках, сборка строк из переменных:
+
+$b=Get-ADComputer -filter {name -like "sb361*"} | Select-Object name;
+$c=$b -replace '[@{}=]|name','';
+foreach ($i in $c) {"\\"+"$i"+"\"+"c$"}
+
+===============================================================================
+
+# Поиск в файле:
+
+PS C:\temp> select-string "status" C:\*.log
+
+C:\RHDSetup.log:36: Status - OnMoveData
+C:\RHDSetup.log:37: Status - ProgramFiles_Installing
+=================================================================================
+
+# Создаем хэштаб из слов, ведем подсчет слов (в массиве слов):
+key=слово, value=число слов. Используются секции begin и process:
+
+PS (18) > $words | % {$h=@{}} {$h[$_] += 1}
+
+того же можно достичь следующим:
+$grouped = $words | group | sort count
+
+==============================================================================================
+
+# Пример использования убирания пустот (любых символов) в строке:
+		
+"Hello     there   		world".split("[ ,`t]", [StringSplitOptions]::RemoveEmptyEntries)
+Hello
+there
+world
+
+=======================================================================
+
+# Заменяем в строке 2 и более пробелов на один:
+
+PS C:\temp> "  sfsf     asdads sad  sdasdda   t" -replace" {2,}"," "
+ sfsf asdads sad sdasdda t
+
+==============================================================
+
+# Чтение с клавиатуры:
+
+PS (8) > read-host "Enter some text"
+Enter some text: some text
+some text
+
+================================================================
+
+# Обновление членства в группах без перезагрузки:
+
+klist -lh 0 -li 0x3e7 purge
+===============================================================
+
+# Цветной вывод:(аналог write-host):
+
+PS (4) > $host.ui.writeline("red","green", "Hi there")
+Hi there
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Скрипт блок 
+
+PS (8) > $sb = $ExecutionContext.InvokeCommand.NewScriptBlock(
+>> '1..4 | foreach {$_ * 2}')
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Добавляем метод к свойству:
+
+PS (3) > $a = add-member -pass -in $a scriptmethod sum {
+>> $r=0
+>> foreach ($e in $this) {$r += $e}
+>> $r
+>> }
+>>
+
+and finally use it:
+PS (4) > $a.sum()
+10
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Shadowing свойства:
+
+PS$ C:\temp>f.name
+windows
+$n=new-object Management.Automation.PSScriptProperty `
+>> name,{$this.psbase.name.ToUpper()}
+PS C:\temp> $f.psobject.members.add($n)
+PS (22) > $f.name
+WINDOWS
+_________________________________
+
+# Добавляем алиас к свойству----------------------------------------------
+
+$s = add-member -passthru -in $s aliasproperty size length
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Смотрим шары (локально)
+
+Get-SmbShare | Get-SmbShareAccess
+
+++++++++++++++++++  OUT +++++++++++++++++++++++++++++++++++++
+
+&1	stdout
+2	stderrout
+4	-verbose out
+3	-Предупреждения
+
+####################-Ошибки-##################################
+
+# Директива throw:
+
+PS (11) > function hi ($name=$(throw '$name is required'))
+>> { "Hi $name" }
+
+# Вывода в стдаут нет: (эквивалент “silently continue”)
+
+PS (4) > trap { "Got it!"; continue } 1/$zero; "LAST"
+Got it!
+LAST
+
+# exception автоматически попадает в $_ (это только в пределах trap)
+
+PS (5) > trap { "Got it: $_"; continue } 1/$zero;
+Got it: Attempted to divide by zero.
+
+$? - (false/true значения) - результат успешности выполнения последней операции
+$LASTEXITCODE - значение exit code
+$LASTEXITCODE is 0 and $? is true
+$error[] массив строк, содержит вывод ошибок
+-ErrorVariable errs - вывод ошибок в переменную $errs
+$ErrorActionPreference or -erroraction (stop, continue, silentlycontinue)
+
+# экранирование действия переменной $ErrorActionPreference:
+
+PS (5) > & {
+>> $ErrorActionPreference="stop"
+>> get-item c:\,nosuchfile,c:\,nosuchfile
+>> }
+
+###################FALSE and TRUE#######################
+при числовых операциях
+
+0=false всегда
+1=true всегда
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Удаление файлов старше 6 дней и количества файлов > 18:
+
+PS C:\music> "------------"+(get-date)+"---------------" >> C:\temp\log.log;
+if ((ls C:\Temp2\*.* -Attributes !d).Length -gt 18) {  
+ls c:\temp2\*.* -Attributes !d | where {$_.LastWriteTime -lt (get-date).AddDays(-6)} | Remove-Item -verbose 4>&1>> C:\temp\log.log}
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Циклы (for), функции:
+
+PS C:\Windows> function summa { 
+$stt=0;
+for ($i=0; $i -lt $args.count; $i++) {$stt+=$args[$i]}
+$stt}
+
+PS C:\Windows> summa 4 7 9 8
+28
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Функция с параметрами по умолчанию:
+
+PS (1) > function get-soup (
+>> [switch] $please,
+>> [string] $soup= "chicken noodle"
+>> )
+>> {
+>> if ($please) {
+>> "Here's your $soup soup"
+>> }
+>> else
+>> {
+>> "No soup for you!"
+>> }
+>> }
+>>
+
+Trying this function out:
+
+PS (2) > get-soup
+No soup for you!
+PS (3) > get-soup -please
+Here's your chicken noodle soup
+PS (4) > get-soup -please tomato
+Here's your tomato soup
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Оператор Switch:
+
+PS (1) > $dll=$txt=$log=0
+PS (2) > switch -wildcard (dir) {
+>> *.dll {$dll+= $_.length; continue}
+>> *.txt {$txt+=$_.length; continue}
+>> *.log {$log+=$_.length; continue}
+>> }
+>>
+PS (3) > "dlls: $dll text files: $txt log files: $log"
+dlls: 166913 text files: 1866711 log files: 6669437
+
+PS (2) > switch -wildcard (dir c:\windows)
+>> {*.dll {$dll++} *.txt {$txt++} *.log {$log++}}
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Get-Service | ConvertTo-Html -Property name,status | Foreach { 
+ If ($_ -Like "*<td>Running</td>*") {$_ -Replace "<tr>", "<tr 
+bgcolor=green>"} 
+ else {$_ -Replace "<tr>", "<tr bgcolor=red>"}} > .\get-service.html
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+$sm=0;
+ (ls c:\windows\* -Include *.* | Group-Object Extension)  | foreach{$sm+=$_.count};
+write-host $sm;
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+$i=0
+$vars = @(4,6,'g',"hhh","jnkj",900)
+foreach ($var in $vars) {$var+=$var[$i]
+$i+=1
+$var
+$var.gettype().fullname
+}
+$var
+- - -
+8
+System.Int32
+6
+System.Int32
+g
+System.String
+hhh
+System.String
+jnkj
+System.String
+900
+System.Int32
+900
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+(ls c:\windows\* -Include *.* | Group-Object Extension)  | foreach{write-host $_.values}
+
+(ls c:\windows\* -Include *.* | Group-Object Extension)  | Where-Object {$_.name -eq ".zip"}
+
+ls | Measure-Object Length -Average -sum -Maximum
+
+(ls c:\windows\* -Include *.* | Group-Object Extension)  | Measure-Object -Property values
+
+ls c:\temp\* -Include *.inf  | Where-Object {$_.length -gt 10kb}
+
+
+ls -Attributes !d | Select-Object Extension -Unique | foreach { New-Item $_.Extension -Type Directory}
+ls -Attributes !d | foreach {Move-Item $_.FullName $_.Extension}
+
+ls c:\temp\*  | Where-Object {$_.length -gt 3kb -and $_.extension -eq ".pnf"} | Remove-Item
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# множественное присваивание: а будет 1, b 2, с =3,4
+
+$a,$b,$c = 1,2,3,4
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+ls *.* | foreach { write-host $_.Attributes }
+ls *.* | foreach { $_.Attributes="readonly", "archive" }
+ls *.* | foreach { $_.IsReadOnly=0 }
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Двойной минус -- говорит о том, что дальше идет значение.
+
+PS (3) > write-output -- -inputobject
+-inputobject
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Различие двойных и одинарных кавычек и влияние апострофа `
+
+PS (14) > '$v is $v'
+$v is $v
+PS (15) > "$v is $v"
+files is files
+
+PS (16) > write-output "`$v is $v"
+$v is files
+
+PS (17) > write-output "`$v is '$v'"
+$v is 'files'
+PS (18) >
+
+PS (3) > "$x * 2 is $($x * 2)"
+3 * 2 is 6
+
+PS (1) > "Numbers 1 thru 10: $(for ($i=1; $i -le 10; $i++) { $i })."
+Numbers 1 thru 10: 1 2 3 4 5 6 7 8 9 10.
+
+# Escape Sequence Corresponding Special Character
+`n Newline
+`r Carriage return
+`t Horizontal tab
+`a Alert
+`b Backspace
+`' Single quote
+`" Double quote
+`0 Null
+`` A single backtick
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Перевод из десятичной в 16-ричную систему:
+# (форматирование строки)
+
+PS C:\temp> "0x{0:x}" -f 100
+0x64
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# создание hashtab:
+
+PS (26) > $user = @{ FirstName = "John"; LastName = "Smith";
+>> PhoneNumber = "555-1212" }
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Добавление элементов в массив $a
+
+$a += 22,33
+PS (12) > $a.length
+5
+
+# вывод массива как строки
+
+PS (1) > $a=1,2,3
+PS (2) > "$a"
+1 2 3
+
+# создание пустого массива
+
+@()
+PS (4) > @().length
+0
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Преобразование типов:
+
+PS (2) > [int] [char]"a"
+97
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Get-Process | Select-Object name -Unique | Measure-Object
+Get-Process | Sort-Object name -Unique | Measure-Object
+Get-Service | Select-Object status, name -first 15
+
+
+=============================================================================
+
+# Подсчет имен пользователей в домене:
+
+(Get-ADUser -filter * -Properties * ).DisplayName -replace '^(.+)\s(.+)\s(.+)$','$2' | 
+where {$_ -match '^[а-я][А-Я]+$'} | group | select count, name | sort count | out-gridview
+
+=========================================================================================
+
+# В какие группы входит пользователь:
+
+$User= read-host "User Name"
+Get-ADPrincipalGroupMembership $User | Sort-Object | select -ExpandProperty name
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Инвентаризация CPU, Memory:
+
+new-object psobject |
+Add-Member -PassThru NoteProperty "Computer" ((get-wmiobject win32_computersystem).name) |
+Add-Member -PassThru NoteProperty "Name" ((get-wmiobject win32_processor).name) |
+Add-Member -PassThru NoteProperty "SystemType" ((get-wmiobject win32_processor).caption) |
+Add-Member -PassThru NoteProperty "NumberOfCores" ((get-wmiobject win32_processor).NumberOfCores) |
+Add-Member -PassThru NoteProperty "ThreadCount" ((get-wmiobject win32_processor).ThreadCount) |
+Add-Member -PassThru NoteProperty "Memory(GB)" ([math]::round((get-wmiobject win32_computersystem).totalphysicalmemory/1gb,0)) | Out-GridView
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Время последней загрузки компа (с форматированием времени):
+
+$Boot = Get-WmiObject Win32_OperatingSystem -ComputerName sb3247
+$Boot.ConvertToDateTime($Boot.LastBootUpTime)
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#Сколько места на дисках С: на нескольких компьютерах:
+
+#на одном компьютере:
+Get-WmiObject win32_logicaldisk -ComputerName sb2368 | select @{n="FreeSpace"; e={[math]::round($_.freespace[0]/1gb,1)}}, @{n="Size"; e={[math]::round($_.size[0]/1gb,1)}}
+
+$a=Get-ADComputer -filter * | where {$_.name -like "sb341?"}| select-object name
+$b=$a -replace '[@{}=]|name',""
+""
+""
+"--------------     ---------------------------"
+"Computer Name:     Free space on drive C (Gb):"
+"--------------     ---------------------------"
+$h=@{}
+foreach ($c in $b) {if (Test-Connection $c -count 1 -Quiet)
+{
+ $i=(Get-WmiObject win32_logicaldisk -ComputerName $c).freespace[0]
+  $h[$c]=[math]::round([string]$i/1gb,1)
+  }} $h.GetEnumerator() | sort -Property value
+
+----------Вариант 2
+
+$a=Get-ADComputer -filter * | where {$_.name -like "sb321?"}| select-object name
+$b=$a -replace '[@{}=]|name',""
+foreach ($c in $b) {if (Test-Connection $c -count 1 -Quiet)
+{$ErrorActionPreference = "SilentlyContinue"
+ Get-WmiObject win32_logicaldisk -filter "DeviceID='C:'"-ComputerName $c | select @{Name="Comp Name`t";e={$c}}, @{Name="Free Space (C:)`t";e={[math]::round($_.freespace/1gb,1)}},` 
+ @{Name="Total (Gb)";e={[math]::round($_.size/1gb,1)}}
+    }}
+
+------------Вариант 3
+
+Get-ADComputer -filter * | where {$_.name -like "sb341?"} | foreach {
+if (Test-Connection $_.name -count 1 -Quiet) {
+$ErrorActionPreference="silentlycontinue" 
+New-Object psobject |
+Add-Member -PassThru NoteProperty Name $_.name |
+Add-Member -PassThru NoteProperty "Total Space" ([math]::round((Get-WmiObject win32_logicaldisk -filter "DeviceID='C:'"-ComputerName $_.name).size/1gb,1)) |
+Add-Member -PassThru NoteProperty "Free Space" ([math]::round((Get-WmiObject win32_logicaldisk -filter "DeviceID='C:'"-ComputerName $_.name).freespace/1gb,1))}} | Out-GridView
+$ErrorActionPreference="continue"
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Проверка существования пользователя в AD:
+
+if ((get-aduser -Filter {name -eq "ln9"}) -ne $null) {"User exists!"} else {"NO such user!"}
+--------------вариант 2:
+C:\PS>Get-ADUser -Filter * -SearchBase "OU=Finance,OU=UserAccounts,DC=FABRIKAM,DC=COM"
+    
+    Description
+    
+    -----------
+    
+    Get all users under the container 'OU=Finance,OU=UserAccounts,DC=FABRIKAM,DC=COM'.
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Get-Disk -Number 0 | ft –AutoSize `
+    @{Expression={$_.Number};Label="Диск"}, `
+    @{Expression={$_.FriendlyName};Label="Название"}, `
+    @{Expression = {[int]($_.Size/1GB)}; Label = "Размер (GB)"},
+    @{Expression={$_.PartitionStyle};Label="Разметка"}
+
+Get-Process | Format-Table -Property Name,Id,@{n='VM(MB)';e={$PSItem.VM/1MB};formatstring='N2';align='right'} -autosize
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Использование $PSItem (в Select-Object)
+
+Get-Process |
+Select-Object
+Name,ID,@{n='VirtualMemory';e={$PSItem.VM}},@{n='PagedMemory';e={$PSItem.PM}}
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Сколько памяти на компе + округление до Гб.:
+
+[math]::Round((Get-WmiObject -class win32_computersystem -ComputerName cit-nb-sa10).totalphysicalmemory/1gb,0)
+-------------------
+Get-WmiObject -Class win32_computersystem | Select-Object -Property username
+Get-WmiObject -Class win32_computersystem -Property username
+Get-Wmiobject -Class win32_desktop
+Get-Wmiobject -Class win32_bios
+Get-Wmiobject -Class win32_quickfixengineering -Property hotfixid | Select-Object -Property hotfixid
+
+Get-WmiObject -list -посмотреть все объекты wmi
+----------------------
+$Computer = Get-WmiObject  -Class win32_ComputerSystem  ## переменная в которой хранится имя компьютера
+$CPU = Get-WmiObject  -Class win32_processor            ## переменная, в которой хранятся данные о CPU
+$mboard = Get-WmiObject  -Class win32_baseboard         ## переменная, в которой хранятся данные о материнской плате
+$Memory = Get-WmiObject  -Class win32_computersystem    ## переменная, в которой хранятся данные о ОЗУ
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+$a = new-Object -ComObject excel.application
+$b = $a.Workbooks.add()
+$c = $b.Worksheets.Item(1)
+$c.Cells.item(1,1) = " Test Item one. "
+$a.Visible = $true
+$b.SaveAs("c:\temp\test.xls")
+$a.Quit()
+
+++++++++++++++++++++++++++++++++++
+
+$i=2; $j=1;
+Get-Service | foreach {$c.Cells($i,$j) = $_.name; 
+$j=2;
+$c.Cells($i,$j) = $_.status;
+$j=1;
+$i+=1;}
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Преимущества CSV (разделитель - запятая):
+
+$a=import-csv C:\temp2\test2.csv
+PS C:\temp> $a.GetValue(1)
+
+first   last     uid        
+-----   ----     ---        
+Lopwenc Gqiromnb Lpqtvaazxfg
+
+PS C:\temp> $a.GetValue(1).first
+Lopwenc
+
+
+================================================================
+
+# Множественное создание пользователей из файла:
+
+Import-Csv -Path users2.csv | foreach {
+New-ADUser -Name "$($_.Given) $($_.Surname)" `
+-SamAccountName $_.Id -GivenName $_.Given `
+-Surname $_.Surname `-Path 'ou=england,dc=manticore,dc=org' `
+-DisplayName "$($_.Given) $($_.Surname)" `
+-AccountPassword $null -CannotChangePassword $false `
+-ChangePasswordAtLogon $true `
+-UserPrincipalName "$($_.Id)@manticore.org"
+}
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#Время логона компов старше 4 месяцев:
+
+Get-ADComputer -filter * -Properties * | where {$_.name -like "sb*" -and ($_.lastlogondate) -lt (get-date).adddays(-120)} | 
+select name, @{n="LastLogon";e={$_.lastlogondate}} | Out-GridView
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Разбор строк match
+
+PS (10) > "abcdef" -match "(?<o1>a)(?<o2>((?<e3>b)(?<e4>c))de)f"
+True
+PS (11) > $matches
+Key Value
+--- -----
+o1 a
+e3 b
+e4 c
+o2 bcde
+1 bc
+0 abcdef
+
+$p='^Full Computer.* (?<computer>[^.]+)\.(?<domain>[^.]+)'
+
+
+# Еще разбор строк: PS (1) > [string]::join('+',(1,2,3))
+1+2+3
+
+# Форматирование хитрое:
+PS (3) > '|{0,10}| 0x{1:x}|{2,-10}|' -f 10,20,30
+| 10| 0x14|30 |
+
+{<index>[,<alignment>][:<formatString>]}
+
+++++++++++++++++++++++++++++++++++
+
+# Замена множественная в файле:
+
+${c:old.txt} -replace 'is (red|blue)','was $1' > new.txt
+
+${c:old.txt} = ${c:old.txt} -replace 'is (red|blue)','was $1'
+
+${c:f1.txt},${c:f2.txt} = ${c:f2.txt},${c:f1.txt} замена содержимого файлов
+
+# в фигурных скобках - это такая переменная!!!
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+dir $env:windir\*.log | Select-String -List error | Format-Table path,linenumber -Autosize
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Самый новый файл
+
+$mx=(ls -Attributes !d | Measure-Object -Property LastWriteTime -Maximum)
+ls -Attributes !d | where {$_.lastwritetime -eq $mx.Maximum}
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# OFS - Output Field Separator
+
+PS (4) > $OFS='+'
+PS (5) > "$data"
+1+2+3+4+5+6+7+8+9+10
+
+# запустить полученную строку:
+
+PS (6) > invoke-expression "$data"
+55
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Создает отдельную форму WinForm для графического вывода информации: 
+
+[void][reflection.assembly]::LoadWithPartialName("System.Windows.Forms") 
+$form = New-Object Windows.Forms.Form 
+$form.Text = "My First Form" 
+$button1 = New-Object Windows.Forms.Button 
+$button2 = New-Object windows.forms.button
+$button1.text="Push Me!--1"
+$button2.text="Bottom---2" 
+$button1.dock="top"
+$button2.dock="bottom"
+$button1.add_click({$form.close()})
+$button2.add_click({$form.close()}) 
+$form.controls.add($button1)
+$form.controls.add($button2) 
+$form.Add_Shown({$form.Activate()}) 
+$form.ShowDialog() 
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Приведение типов с помощью AS/IS
+
+-isnot $true –isnot [string] 	$true 	The object on the left side is not of the same type
+					as the right side.
+
+$true –isnot [object] 		$true	The null value is the only thing that isn’t an object.
+
+-as "123" -as [int] 		123 	Takes the left side and converts it to the type
+					specified on the right side.
+
+123 –as "string" 		"123" 	Turns the left side into an instance of the type
+					named by the string on the right.
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Существует ли путь/файл/переменная:
+
+PS (3) > test-path variable:NoSuchVariable
+False
+
+-----------------------------------------------------AD--------------------------------------------------------
+
+# Сколько еще будет действовать пароль к учетке:
+
+# Правильный метод для нескольких записей:(также это метод переопределения заголовков столбцов)
+
+PS C:\temp> get-aduser -filter {name -like"sln*"} -Properties * | Select-Object @{n="F-date";e={$_.passwordlastset.adddays(50)}}, displayname, SamAccountName
+
+F-date              displayname                SamAccountName
+------              -----------                --------------
+22.06.2018 7:44:16  Шкарупо Людмила Николаевна SLN           
+30.06.2018 11:31:15 Сапкина Лидия Николаевна   SLN1          
+28.06.2018 21:06:37 Саскина Людмила Николаевна SLN2          
+22.06.2018 8:18:07  Сорокин Леонид Николаевич  SLN3       
+
+PS C:\temp> $a=get-aduser sln3 -Properties passwordlastset;
+[datetime]$b=$a.PasswordLastSet.AddDays(30);
+$b.ToString('dd-MM-yyyy HH:mm:ss')
+
+02-06-2018 08:18:07
+
+# Или так:
+
+PS C:\temp> (get-aduser sln3 -Properties *).passwordlastset.adddays(30)
+
+2 июня 2018 г. 8:18:07
+
+---------------------------------------------------------------------------------------
+
+# Поиск компов с логином старше 120 дней:
+
+Search-ADAccount -AccountInactive -TimeSpan 120.00:00:00 -ComputersOnly | where {$_.name -like'SB????'} | Sort-Object LastLogonDate | ft name, LastLogonDate
+
+$a=Get-ADComputer -Filter 'name -like"SB*"' -Properties * | sort-object lastlogondate | foreach {if ($_.lastlogondate -lt (get-date).AddDays(-120)) {$_.name+ "`t`t" +$_.lastlogondate.tostring("dd-MM-yyyy HH:mm:ss")}};
+$a > old_comp.txt;
+$a.length >> old_comp.txt;
+------------------------------------------------------------------------------------------------------------------
+
+# Поиск в AD:
+
+C:\PS>Search-ADAccount -AccountExpiring -TimeSpan 6.00:00:00 | FT Name,ObjectClass -A
+
+C:\PS>Search-ADAccount -LockedOut | FT Name,ObjectClass -A
+
+Get-ADUser -property * -Filter 'Name -like "sln*"'| fl
+
+============================================================execute commands=====================================
+
+& 'C:\Program Files\Windows NT\Accessories\wordpad.exe' -запускает без анализа всю строку
+. c:\windows\notepad.exe
+Invoke-Expression -Command ′C:\Windows\Hello.exe′ выполнит строку текста как команду
+Invoke-Command -ScriptBlock {& ′C:\Program Files\Hello.exe′} - выполнит команду локально или удаленно на компе (или на нескольких сразу)
+
+Или так:
+
+$scriptblock = {″C:\′Program Files′\Hello.exe″}
+$Computers = @(′SRV1′,′SRV2′,′SRV3′)
+Invoke-Command -ScriptBlock $scriptblock -ComputerName $Computers
+cmd /c ″C:\Program Files\Hello.exe″
+
+=================================================================Exchange=========================================
+
+# Подключение к удаленному серверу Exch:
+
+$Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionUri http://<ServerFQDN>/PowerShell/ -Authentication Kerberos
+Import-PSSession $Session
+--------Remove-PSSession $Session
+-------------------------------------------------------------------------------------------------------------------------
+
+Invoke-Command -Session $Session -ScriptBlock {Get-Mailboxstatistics}
+
+# Посмотреть размер почтовых ящиков.
+Get-MailboxStatistics -server ВАШ СЕРВЕР | ft DisplayName, TotalItemSize
+
+# To export data to a .pst file that is named john.pst located at C:\PSTFiles:
+Export-Mailbox -Identity john@contoso.com -PSTFolderPath C:\PSTFiles\john.pst
+
+# To export data from all the mailboxes of users in the Contoso hosted organization:
+Get-Mailbox -OrganizationalUnit "OU=Contoso,OU=ConsolidatedMessenger,OU=Hosting,DC=Fabrikam,DC=com" | Export-mailbox -PSTFolderPath c:\PSTFiles 
+
+# Получаем информацию о свободном месте на дисках почтового сервера:
+Get-WmiObject -Class Win32_Logicaldisk -computername ВАШ СЕРВЕР | select deviceid,volumename,freespace
+
+# Получаем размер почтовых ящиков с отсортировкой по заполненности:
+Get-MailboxStatistics -server ВАШ СЕРВЕР| sort TotalItemSize -descending | ft DisplayName, TotalItemSize, ItemCount
+
+# Получаем размеры всех существующих ящиков в виде таблицы
+get-mailbox | get-mailboxstatistics | select-object DisplayName,TotalItemSize,StorageLimitStatus,LastLogonTime | FT
+
+Get-MailboxStatistics  l.sorokin |ft DisplayName, TotalItemSize, ItemCount, totaldeleteditemsize, storagelimitstatus
+
+# Размер почтовых ящиков пользователей с отсортировкой по размеру и результатом первые 100
+Get-MailboxStatistics -server ВАШ СЕРВЕР | sort totalitemsize -des | select-object Displayname, ItemCount,@{name=’TotalItemSize’;expression={$_.totalitemsize}} -first 100
+
+# Получить отчет по неактивным почтовым ящикам , которые не используются более 4х месяцев.
+Get-MailboxStatistics -server вписываете сервер| where {$_.Lastlogontime -lt (get-date).AddDays(-120)} |ConvertTo-Html LastLoggedOnUserAccount,Lastgontime,Database > c:\MBST\MB.html
+
+
+# Удаление MailBox(purge):
+Remove-Mailbox -Database 'Exch01\Mailbox Database -StoreMailboxIdentity (Get-MailboxStatistics |
+Where {$_.DisplayName -eq "FITZROY Angus"}).MailboxGuid
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+# Поиск объекта с помощью метода FindAll() В AD
+
+# Получение доступа к корню домена
+$Search = new-object DirectoryServices.DirectorySearcher
+? ("LDAP://DC=Island,DC=ru")
+# Критерий поиска – отображаемое имя группы
+$Search.Filter = "(&(objectClass=User)(cn=A*)(!objectClass=Computer))"
+# Поиск по всему каталогу Active Directory
+$Search.SearchScope = 2
+# Сортировка результатов поиска
+$Search.Sort.Direction = 1
+$Search. Sort.PropertyName="sAMAccountName"
+# Выполнение поиска
+$Search.FindAll() | % {
+# Получение доступа к группе с помощью относительного пути
+$obj = $_.GetDirectoryEntry()
+# Чтение данных
+Write-Host $obj.samaccountname }
+
