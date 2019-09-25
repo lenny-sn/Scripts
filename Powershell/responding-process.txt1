@@ -1,0 +1,22 @@
+Check to see it your process has a MainWindowHandle property
+
+Get-Process | select Name, Handle, MainWindowHandle
+
+If it doesn't the Responding property will always return True
+
+So - for others - to be clear it should be:
+
+if ( -not ($oneProcess.MainWindowHandle -and $oneProcess.Responding) ) {
+       write "Status = Not Responding: Kill&  Restart.."    
+       $oneProcess.kill()
+        ## restart ..
+} else {
+       ## write "Status = either normal or not detectable (no Window-Handle)"
+}
+
+
+well, if a process has no WindowHandle, its Responding property is always $true.
+
+So when you are looking for non-responding processes, you just need to look for Responding -eq $false. You do not need to care about WindowHandles.
+
+You will miss non-responding processes that have no windowhandle anyway. However, any process that has a window also has a windowhandle, so you would only miss things like non-responding console apps etc.
