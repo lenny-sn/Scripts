@@ -1,0 +1,1 @@
+https://docs.microsoft.com/en-us/powershell/module/Microsoft.PowerShell.Management/Remove-Service?view=powershell-6
